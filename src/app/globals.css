@@ -1,26 +1,68 @@
 @import "tailwindcss";
 
+/* Calm, low-contrast palette. One accent colour, soft neutrals. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --paper: #f7f6f3;
+  --card: #ffffff;
+  --line: #e4e1da;
+  --ink: #23242a;
+  --ink-soft: #6b6d75;
+  --accent: #2f7f6f;
+  --accent-strong: #256657;
+  --accent-soft: #e6f2ee;
+  --warn: #8a4b12;
+  --warn-soft: #fbeedd;
+  --easy: #2f6f4f;
+  --easy-soft: #e3f1e8;
+  --medium: #7a5c12;
+  --medium-soft: #f7edd3;
+  --hard: #9b3b3b;
+  --hard-soft: #f9e4e4;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --paper: #16171b;
+    --card: #1f2126;
+    --line: #33363d;
+    --ink: #ececea;
+    --ink-soft: #a3a5ad;
+    --accent: #5fb8a3;
+    --accent-strong: #7ccbb8;
+    --accent-soft: #1f3530;
+    --warn: #e6b07a;
+    --warn-soft: #3a2a18;
+    --easy: #8fd0aa;
+    --easy-soft: #1f3327;
+    --medium: #e3c069;
+    --medium-soft: #3a3118;
+    --hard: #e69a9a;
+    --hard-soft: #3d2222;
   }
 }
 
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-easy: var(--easy);
+  --color-easy-soft: var(--easy-soft);
+  --color-medium: var(--medium);
+  --color-medium-soft: var(--medium-soft);
+  --color-hard: var(--hard);
+  --color-hard-soft: var(--hard-soft);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
 }

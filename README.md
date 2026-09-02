@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Lecture Cards
 
-## Getting Started
+Turn lecture notes into study cards. Upload a lecture PDF or paste your notes,
+get 10 editable flashcards with the exact passage each one came from, and
+export them as a CSV file that Anki can import.
 
-First, run the development server:
+Private beta. Nothing you upload is stored.
+
+## Run it
 
 ```bash
+npm install
+cp .env.example .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+With no AI provider configured the app runs in **sample mode**: cards are
+built directly from sentences in your material, and nothing leaves your
+machine. See `CLAUDE.md` for how the provider boundary works.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Check it
 
-## Learn More
+```bash
+npm run check   # lint, type check, tests
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Importing the CSV into Anki
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Click **Export CSV for Anki** on the results page.
+2. In Anki: **File → Import**, choose the file.
+3. Set the field separator to comma if Anki did not detect it.
+4. Map columns: **Front** → Front, **Back** → Back, **Tags** → Tags.
+   **Difficulty** and **Source** can be ignored or mapped to extra fields.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The file has a header row; tick "first row is column names" if Anki asks.
 
-## Deploy on Vercel
+## Always review the cards
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Cards are generated automatically. They can be wrong, incomplete, or miss
+context. Every card shows the lecture excerpt it was based on. Check it.
