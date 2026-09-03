@@ -42,3 +42,8 @@ next-env.d.ts
 
 # keep the placeholder env file
 !.env.example
+
+# test corpus: only the CC BY paper ships; other PDFs are local-only (see test/fixtures/README.md)
+/test/fixtures/*.pdf
+!/test/fixtures/henseler-ringle-sarstedt-2015-discriminant-validity.pdf
+/test/fixtures/optional/

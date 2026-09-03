@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CSV_COLUMNS, cardsToCsv, escapeCsvField, parseCsv } from "@/lib/csv";
+import { ANKI_DIRECTIVES, cardsToCsv, escapeCsvField, parseCsv } from "@/lib/csv";
 import type { Flashcard } from "@/lib/flashcards/schema";
 
 const nastyCard: Flashcard = {
@@ -24,12 +24,12 @@ describe("CSV export", () => {
   it("escapes commas, quotes and line breaks so the file round-trips", () => {
     const csv = cardsToCsv([nastyCard, plainCard]);
     const rows = parseCsv(csv);
-    expect(rows[0]).toEqual([...CSV_COLUMNS]);
-    expect(rows).toHaveLength(3);
-    expect(rows[1][0]).toBe(nastyCard.question);
-    expect(rows[1][1]).toBe(nastyCard.answer);
-    expect(rows[1][4]).toBe(nastyCard.sourceExcerpt);
-    expect(rows[2][0]).toBe(plainCard.question);
+    expect(rows).toHaveLength(2);
+    expect(rows[0][0]).toBe(nastyCard.question);
+    expect(rows[0][1]).toBe(nastyCard.answer);
+    expect(rows[0][4]).toBe(nastyCard.sourceExcerpt);
+    expect(rows[1][0]).toBe(plainCard.question);
+    for (const directive of ANKI_DIRECTIVES) expect(csv).toContain(`${directive}\r\n`);
   });
 
   it("doubles quotes inside a field", () => {
@@ -38,7 +38,7 @@ describe("CSV export", () => {
 
   it("turns spaces in tags into underscores so Anki reads them as separate tags", () => {
     const rows = parseCsv(cardsToCsv([nastyCard]));
-    expect(rows[1][2]).toBe("limiting_factors rate");
+    expect(rows[0][2]).toBe("limiting_factors rate");
   });
 
   it("starts with a UTF-8 byte-order mark and uses CRLF line endings", () => {
@@ -47,6 +47,6 @@ describe("CSV export", () => {
     expect(csv.endsWith("\r\n")).toBe(true);
     // Only the record separators are bare CRLF; the multiline answer stays quoted.
     const multi = cardsToCsv([nastyCard]);
-    expect(parseCsv(multi)).toHaveLength(2);
+    expect(parseCsv(multi)).toHaveLength(1);
   });
 });

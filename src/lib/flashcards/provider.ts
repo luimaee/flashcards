@@ -30,6 +30,8 @@ export interface FlashcardProvider {
   readonly name: string;
   /** True when this provider sends lecture text to a third party. */
   readonly sendsTextExternally: boolean;
+  /** Most characters of source text this provider can take. Defaults to MAX_SOURCE_CHARS. */
+  readonly maxSourceChars?: number;
   /** Return raw cards (no ids). Output is validated by the caller. */
   generateFlashcards(text: string, options: GenerateOptions): Promise<RawFlashcard[]>;
 }

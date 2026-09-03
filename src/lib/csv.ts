@@ -3,16 +3,29 @@ import type { Flashcard } from "./flashcards/schema";
 /**
  * Anki-friendly CSV export.
  *
+ * The file starts with Anki "file header" directives (lines beginning with
+ * `#`). Anki reads them for settings and never imports them as notes, which
+ * is why we use them instead of a plain header row: a plain "Front,Back"
+ * row would be imported as a card.
+ *
  * Columns (in order): Front, Back, Tags, Difficulty, Source
  * - Front / Back map straight onto Anki's Basic note type.
- * - Tags are space-separated, which is how Anki reads a tags column.
- * - Difficulty and Source are extra fields; map them to a note field or
+ * - Tags are space-separated; `#tags column:3` tells Anki where they are.
+ * - Difficulty and Source are extra fields; map them to note fields or
  *   ignore them in Anki's import dialog.
  *
  * Every value is quoted; quotes are doubled; line breaks stay inside quotes.
+ * Other spreadsheet apps show the `#` lines as ordinary rows.
  */
 
 export const CSV_COLUMNS = ["Front", "Back", "Tags", "Difficulty", "Source"] as const;
+
+export const ANKI_DIRECTIVES = [
+  "#separator:Comma",
+  "#html:false",
+  `#columns:${CSV_COLUMNS.join(",")}`,
+  "#tags column:3",
+] as const;
 
 export function escapeCsvField(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
@@ -23,7 +36,6 @@ export function toCsvRow(fields: string[]): string {
 }
 
 export function cardsToCsv(cards: Flashcard[]): string {
-  const header = toCsvRow([...CSV_COLUMNS]);
   const rows = cards.map((card) =>
     toCsvRow([
       card.question,
@@ -34,12 +46,13 @@ export function cardsToCsv(cards: Flashcard[]): string {
     ]),
   );
   // \r\n line endings and a UTF-8 byte-order mark keep Excel and Anki happy.
-  return "﻿" + [header, ...rows].join("\r\n") + "\r\n";
+  return "﻿" + [...ANKI_DIRECTIVES, ...rows].join("\r\n") + "\r\n";
 }
 
 /**
  * Minimal CSV parser used only by tests to prove the export round-trips.
- * Handles quoted fields, doubled quotes and line breaks inside quotes.
+ * Handles quoted fields, doubled quotes, line breaks inside quotes, and
+ * skips Anki `#` directive lines.
  */
 export function parseCsv(csv: string): string[][] {
   const text = csv.startsWith("﻿") ? csv.slice(1) : csv;
@@ -47,8 +60,15 @@ export function parseCsv(csv: string): string[][] {
   let row: string[] = [];
   let field = "";
   let inQuotes = false;
+  let atLineStart = true;
   for (let i = 0; i < text.length; i += 1) {
     const ch = text[i];
+    if (atLineStart && !inQuotes && ch === "#") {
+      const end = text.indexOf("\n", i);
+      i = end === -1 ? text.length : end;
+      continue;
+    }
+    atLineStart = false;
     if (inQuotes) {
       if (ch === '"') {
         if (text[i + 1] === '"') {
@@ -71,11 +91,13 @@ export function parseCsv(csv: string): string[][] {
       row = [];
       field = "";
       i += 1;
+      atLineStart = true;
     } else if (ch === "\n") {
       row.push(field);
       rows.push(row);
       row = [];
       field = "";
+      atLineStart = true;
     } else {
       field += ch;
     }

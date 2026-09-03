@@ -7,6 +7,9 @@ import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from "@/lib/upload";
 
 interface SourceFormProps {
   disabled: boolean;
+  /** Paste-box text, owned by the page so it survives errors. */
+  text: string;
+  onTextChange: (text: string) => void;
   onSubmit: (source: SourceInput) => void;
 }
 
@@ -14,9 +17,8 @@ interface SourceFormProps {
  * Homepage form: drop or choose a PDF, or paste text. Browser-side checks
  * give quick feedback; the server re-checks everything.
  */
-export function SourceForm({ disabled, onSubmit }: SourceFormProps) {
-  const [mode, setMode] = useState<"upload" | "paste">("upload");
-  const [text, setText] = useState("");
+export function SourceForm({ disabled, text, onTextChange, onSubmit }: SourceFormProps) {
+  const [mode, setMode] = useState<"upload" | "paste">(text.trim() ? "paste" : "upload");
   const [dragging, setDragging] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -137,7 +139,7 @@ export function SourceForm({ disabled, onSubmit }: SourceFormProps) {
           <textarea
             id={textId}
             value={text}
-            onChange={(event) => setText(event.target.value)}
+            onChange={(event) => onTextChange(event.target.value)}
             disabled={disabled}
             rows={10}
             placeholder="Paste anything from the lecture here. A few paragraphs is plenty."

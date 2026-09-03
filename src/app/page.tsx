@@ -1,30 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { CardEditor } from "@/components/CardEditor";
 import { SourceForm } from "@/components/SourceForm";
 import { ApiError, fetchProviderInfo, requestCards, type ProviderInfo, type SourceInput } from "@/lib/client";
 import { cardsToCsv } from "@/lib/csv";
 import type { Flashcard } from "@/lib/flashcards/schema";
-
-type Phase =
-  | { name: "idle" }
-  | { name: "working"; message: string }
-  | { name: "done" }
-  | { name: "error"; message: string };
+import { initialSession, sessionReducer } from "@/lib/session";
 
 /**
  * The whole app lives on one page. State is kept in memory only: refreshing
  * the page clears everything, which is the intended behaviour for this beta.
+ * The state rules live in src/lib/session.ts so they can be unit-tested.
  */
 export default function Home() {
-  const [phase, setPhase] = useState<Phase>({ name: "idle" });
-  const [cards, setCards] = useState<Flashcard[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(sessionReducer, initialSession);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [busyCardId, setBusyCardId] = useState<string | null>(null);
   const [provider, setProvider] = useState<ProviderInfo | null>(null);
-  const [source, setSource] = useState<SourceInput | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -38,74 +30,70 @@ export default function Home() {
   }, []);
 
   const generate = useCallback(async (source: SourceInput) => {
-    setSource(source);
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setNotice(null);
     setExportError(null);
-    setPhase({
-      name: "working",
-      message: source.kind === "pdf" ? "Reading your PDF and writing cards. This usually takes under a minute." : "Reading your notes and writing cards. This usually takes under a minute.",
-    });
+    dispatch({ type: "generateStart", source });
     try {
       const result = await requestCards(source, { signal: controller.signal });
-      setCards(result.cards);
-      setNotice(result.notice ?? null);
-      setPhase({ name: "done" });
+      dispatch({ type: "generateSuccess", cards: result.cards, notice: result.notice });
     } catch (error) {
-      if (error instanceof ApiError && error.code === "cancelled") return;
-      setPhase({ name: "error", message: error instanceof ApiError ? error.message : "Something went wrong. Please try again." });
+      if (error instanceof ApiError && error.code === "cancelled") {
+        dispatch({ type: "generateCancelled" });
+        return;
+      }
+      dispatch({
+        type: "generateFailure",
+        message: error instanceof ApiError ? error.message : "Something went wrong. Please try again.",
+      });
     }
   }, []);
 
   const regenerateOne = useCallback(
     async (id: string) => {
-      if (!source) return;
-      setBusyCardId(id);
-      setNotice(null);
+      if (!state.source) return;
+      dispatch({ type: "regenerateCardStart", id });
       try {
-        const result = await requestCards(source, { count: 1, avoid: cards });
+        const result = await requestCards(state.source, { count: 1, avoid: state.cards });
         const replacement = result.cards[0];
         if (!replacement) {
-          setNotice("No different card could be made for that spot. Try editing it instead.");
+          dispatch({ type: "regenerateCardFailure", message: "No different card could be made for that spot. Try editing it instead." });
           return;
         }
-        setCards((current) => current.map((c) => (c.id === id ? replacement : c)));
+        dispatch({ type: "regenerateCardSuccess", id, card: replacement });
       } catch (error) {
-        setNotice(error instanceof ApiError ? error.message : "Could not regenerate that card. Please try again.");
-      } finally {
-        setBusyCardId(null);
+        dispatch({
+          type: "regenerateCardFailure",
+          message: error instanceof ApiError ? error.message : "Could not regenerate that card. Please try again.",
+        });
       }
     },
-    [cards, source],
+    [state.cards, state.source],
   );
 
   function regenerateAll() {
-    if (source) void generate(source);
+    if (!state.source) return;
+    if (state.edited && !window.confirm("This replaces every card, including the ones you edited or deleted. Continue?")) {
+      return;
+    }
+    void generate(state.source);
+  }
+
+  function cancelGeneration() {
+    abortRef.current?.abort();
   }
 
   function startOver() {
     abortRef.current?.abort();
-    setSource(null);
-    setCards([]);
-    setNotice(null);
     setExportError(null);
-    setPhase({ name: "idle" });
-  }
-
-  function updateCard(updated: Flashcard) {
-    setCards((current) => current.map((c) => (c.id === updated.id ? updated : c)));
-  }
-
-  function deleteCard(id: string) {
-    setCards((current) => current.filter((c) => c.id !== id));
+    dispatch({ type: "startOver" });
   }
 
   function exportCsv() {
     setExportError(null);
     try {
-      const ready = cards.filter((c) => c.question.trim() && c.answer.trim());
+      const ready = state.cards.filter((c) => c.question.trim() && c.answer.trim());
       if (ready.length === 0) {
         setExportError("There are no complete cards to export. Each card needs a question and an answer.");
         return;
@@ -125,8 +113,9 @@ export default function Home() {
     }
   }
 
-  const isWorking = phase.name === "working";
-  const showResults = phase.name === "done" && source !== null;
+  const isWorking = state.phase === "working";
+  const showResults = state.phase !== "idle" && state.cards.length > 0;
+  const cards: Flashcard[] = state.cards;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-10 sm:py-16">
@@ -141,33 +130,17 @@ export default function Home() {
 
       {!showResults && (
         <>
-          <SourceForm disabled={isWorking} onSubmit={generate} />
+          <SourceForm
+            disabled={isWorking}
+            text={state.draftText}
+            onTextChange={(text) => dispatch({ type: "setDraftText", text })}
+            onSubmit={generate}
+          />
 
-          {isWorking && (
-            <div role="status" aria-live="polite" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-card px-5 py-4">
-              <span className="h-3 w-3 animate-pulse rounded-full bg-accent" aria-hidden="true" />
-              <div className="flex-1 text-sm text-ink">{phase.message}</div>
-              <button
-                type="button"
-                onClick={startOver}
-                className="rounded-full px-3 py-1 text-xs font-medium text-ink-soft hover:bg-line/60"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+          {isWorking && <WorkingBanner message={state.workingMessage} onCancel={cancelGeneration} />}
 
-          {phase.name === "error" && (
-            <div role="alert" className="mt-6 rounded-2xl border border-warn/30 bg-warn-soft px-5 py-4">
-              <p className="text-sm font-medium text-warn">{phase.message}</p>
-              <button
-                type="button"
-                onClick={() => setPhase({ name: "idle" })}
-                className="mt-2 text-xs font-medium text-warn underline underline-offset-2"
-              >
-                Try again
-              </button>
-            </div>
+          {state.error && !isWorking && (
+            <ErrorBanner message={state.error} onDismiss={() => dispatch({ type: "dismissError" })} />
           )}
 
           <PrivacyNote provider={provider} />
@@ -185,21 +158,28 @@ export default function Home() {
             )}
           </div>
 
-          {notice && (
+          {isWorking && <WorkingBanner message={state.workingMessage} onCancel={cancelGeneration} />}
+
+          {state.error && !isWorking && (
+            <ErrorBanner message={state.error} onDismiss={() => dispatch({ type: "dismissError" })} />
+          )}
+
+          {state.notice && (
             <p role="status" className="mb-4 rounded-xl bg-paper px-4 py-3 text-sm text-ink-soft ring-1 ring-line">
-              {notice}
+              {state.notice}
             </p>
           )}
 
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm text-ink-soft">
               {cards.length} card{cards.length === 1 ? "" : "s"}
+              {state.edited ? ", edited" : ""}
             </span>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={regenerateAll}
-                disabled={busyCardId !== null}
+                disabled={state.busyCardId !== null || isWorking}
                 className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink transition hover:bg-line/40 disabled:opacity-60"
               >
                 Regenerate all
@@ -207,7 +187,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={exportCsv}
-                disabled={busyCardId !== null || cards.length === 0}
+                disabled={state.busyCardId !== null || isWorking || cards.length === 0}
                 className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong disabled:opacity-60"
               >
                 Export CSV for Anki
@@ -228,30 +208,34 @@ export default function Home() {
             </p>
           )}
 
-          {cards.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-line px-5 py-10 text-center text-sm text-ink-soft">
-              All cards were deleted. Use &ldquo;Regenerate all&rdquo; to make a new set, or start over.
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-4">
-              {cards.map((card, index) => (
-                <CardEditor
-                  key={card.id}
-                  card={card}
-                  index={index}
-                  busy={busyCardId === card.id}
-                  onChange={updateCard}
-                  onDelete={deleteCard}
-                  onRegenerate={regenerateOne}
-                />
-              ))}
-            </ul>
-          )}
+          <ul className="flex flex-col gap-4">
+            {cards.map((card, index) => (
+              <CardEditor
+                key={card.id}
+                card={card}
+                index={index}
+                busy={state.busyCardId === card.id || isWorking}
+                onChange={(updated) => dispatch({ type: "updateCard", card: updated })}
+                onDelete={(id) => dispatch({ type: "deleteCard", id })}
+                onRegenerate={regenerateOne}
+              />
+            ))}
+          </ul>
 
           <p className="mt-8 text-xs leading-5 text-ink-soft">
-            The CSV has five columns: Front, Back, Tags, Difficulty, Source. In Anki, choose File then Import, pick the file, and map Front and Back to your note fields. Tags map to Anki tags. You can ignore the last two columns or map them to extra fields.
+            The CSV starts with a few &ldquo;#&rdquo; lines that tell Anki how to read it, then one row per card: Front, Back, Tags, Difficulty, Source. In Anki choose File, then Import, pick the file, and check that Front and Back map to your note fields. Tags are picked up automatically. You can ignore the last two columns or map them to extra fields.
           </p>
         </section>
+      )}
+
+      {state.phase === "done" && cards.length === 0 && (
+        <div className="mb-6 rounded-2xl border border-dashed border-line px-5 py-6 text-center text-sm text-ink-soft">
+          All cards were deleted.{" "}
+          <button type="button" onClick={regenerateAll} className="font-medium text-accent underline underline-offset-2">
+            Make a new set
+          </button>{" "}
+          from the same material, or start over above.
+        </div>
       )}
 
       <footer className="mt-auto pt-12 text-xs leading-5 text-ink-soft">
@@ -261,12 +245,35 @@ export default function Home() {
   );
 }
 
+function WorkingBanner({ message, onCancel }: { message: string | null; onCancel: () => void }) {
+  return (
+    <div role="status" aria-live="polite" className="my-4 flex items-center gap-3 rounded-2xl border border-line bg-card px-5 py-4">
+      <span className="h-3 w-3 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+      <div className="flex-1 text-sm text-ink">{message}</div>
+      <button type="button" onClick={onCancel} className="rounded-full px-3 py-1 text-xs font-medium text-ink-soft hover:bg-line/60">
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div role="alert" className="my-4 rounded-2xl border border-warn/30 bg-warn-soft px-5 py-4">
+      <p className="text-sm font-medium text-warn">{message}</p>
+      <button type="button" onClick={onDismiss} className="mt-2 text-xs font-medium text-warn underline underline-offset-2">
+        Dismiss
+      </button>
+    </div>
+  );
+}
+
 function PrivacyNote({ provider }: { provider: ProviderInfo | null }) {
   return (
     <p className="mt-6 text-xs leading-5 text-ink-soft">
       {provider === null && "Your material is processed on this server only and is not kept after your cards are made."}
       {provider?.sendsTextExternally === false &&
-        "Sample mode is on: your material stays on this server, is processed in memory, and is not kept. When an AI provider is connected later, lecture text will be sent to that provider to write the cards, and this note will say so."}
+        "Sample mode is on: your material stays on this server, is processed in memory, and is not kept. When an AI provider is connected, lecture text will be sent to that provider to write the cards, and this note will say so."}
       {provider?.sendsTextExternally === true &&
         `To write the cards, the text of your material is sent to the connected AI provider (${provider.provider}). It is not stored on this server after your cards are made.`}
     </p>

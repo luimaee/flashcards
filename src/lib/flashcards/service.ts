@@ -1,3 +1,4 @@
+import { AnthropicProvider } from "./anthropic";
 import { MockProvider } from "./mock";
 import { ProviderError, type FlashcardProvider, type GenerateOptions } from "./provider";
 import {
@@ -66,13 +67,32 @@ export interface GenerateOutput {
 
 export const DEFAULT_TIMEOUT_MS = 45_000;
 
-/** Resolve the configured provider. Only "mock" exists in this version. */
+/**
+ * Resolve the configured provider from environment variables.
+ *   AI_PROVIDER=mock (default)  -> MockProvider, no network
+ *   AI_PROVIDER=anthropic       -> AnthropicProvider, needs ANTHROPIC_API_KEY
+ */
 export function getProvider(env: Record<string, string | undefined> = process.env): FlashcardProvider {
   const name = (env.AI_PROVIDER ?? "mock").trim().toLowerCase();
   if (name === "mock" || name === "") return new MockProvider();
+  if (name === "anthropic") {
+    const apiKey = (env.ANTHROPIC_API_KEY ?? "").trim();
+    if (!apiKey) {
+      throw new GenerationError(
+        "misconfigured",
+        "The app is set to use Anthropic but no API key is configured. Ask whoever runs the app to set ANTHROPIC_API_KEY, or switch AI_PROVIDER to mock.",
+        "AI_PROVIDER=anthropic but ANTHROPIC_API_KEY is empty",
+      );
+    }
+    return new AnthropicProvider({
+      apiKey,
+      model: env.ANTHROPIC_MODEL?.trim() || undefined,
+      baseURL: env.ANTHROPIC_BASE_URL?.trim() || undefined,
+    });
+  }
   throw new GenerationError(
     "misconfigured",
-    "The app's AI provider is not set up yet. Sample mode still works: ask whoever runs the app to set AI_PROVIDER=mock.",
+    "The app's AI provider is not set up correctly. Ask whoever runs the app to set AI_PROVIDER to mock or anthropic.",
     `Unknown AI_PROVIDER "${name}"`,
   );
 }
@@ -91,21 +111,16 @@ export async function generateFromText(
     );
   }
 
-  if (text.length > MAX_SOURCE_CHARS) {
-    text = text.slice(0, MAX_SOURCE_CHARS);
-    notices.push(
-      `The material was long, so only the first ${MAX_SOURCE_CHARS.toLocaleString()} characters were used.`,
-    );
+  const limit = provider.maxSourceChars ?? MAX_SOURCE_CHARS;
+  if (text.length > limit) {
+    text = text.slice(0, limit);
+    notices.push(`The material was long, so only the first ${limit.toLocaleString()} characters were used.`);
   }
 
   const requested = Math.max(1, Math.min(input.count ?? TARGET_CARD_COUNT, TARGET_CARD_COUNT));
   const supported = cardCountFor(text);
   const count = Math.min(requested, supported);
-  if (count < requested && (input.count ?? TARGET_CARD_COUNT) === TARGET_CARD_COUNT) {
-    notices.push(
-      `The material is fairly short, so ${count} card${count === 1 ? "" : "s"} were made instead of ${TARGET_CARD_COUNT}.`,
-    );
-  }
+  const wantedFullSet = (input.count ?? TARGET_CARD_COUNT) === TARGET_CARD_COUNT;
 
   const avoid = input.avoid ?? [];
   const options: GenerateOptions = {
@@ -147,6 +162,14 @@ export async function generateFromText(
     throw new GenerationError(
       "no-cards",
       "No usable cards could be made from this material. Try pasting a clearer or longer section of the lecture.",
+    );
+  }
+
+  // Report the number actually returned, not the number we hoped for.
+  if (wantedFullSet && kept.length < TARGET_CARD_COUNT) {
+    const reason = supported < TARGET_CARD_COUNT ? "The material is fairly short" : "Only part of the material was usable";
+    notices.unshift(
+      `${reason}, so ${kept.length} card${kept.length === 1 ? " was" : "s were"} made instead of ${TARGET_CARD_COUNT}.`,
     );
   }
 
