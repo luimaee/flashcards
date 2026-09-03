@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { NoteSidebar } from "@/components/notes/NoteSidebar";
 import { DEFAULT_TEXT_WIDTH, PageView, type PageTool } from "@/components/notes/PageView";
 import { HANDWRITING_TUNING, HIGHLIGHTER_TUNING, bboxOf, packPoints } from "@/lib/ink/geometry";
 import type { Background, DrawableStroke } from "@/lib/ink/render";
+import { importImageToPage } from "@/lib/store/importers";
+import { linkOpsForNote } from "@/lib/store/links";
 import { useLiveQuery, useStore } from "@/lib/store/react";
-import type { Note, Page, TextBlock } from "@/lib/store/schema";
+import type { ImageBlock, Note, Page, TextBlock } from "@/lib/store/schema";
 
 const TOOLS: { id: PageTool; label: string }[] = [
   { id: "pen", label: "Pen" },
@@ -36,7 +39,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   const viewportWidth = useSyncExternalStore(subscribeToResize, () => window.innerWidth, () => 1024);
 
   const pageWidth = pages?.[0]?.width ?? 595;
-  const scale = Math.min(1.6, Math.max(0.5, (Math.min(viewportWidth, 1100) - 48) / pageWidth));
+  const scale = Math.min(1.6, Math.max(0.5, (Math.min(viewportWidth, 1100) - 48 - 224) / pageWidth));
 
   if (note === undefined || pages === undefined) return <div className="p-6 text-sm text-ink-soft">Opening note…</div>;
   if (note === null || !note) {
@@ -74,16 +77,19 @@ export function NoteEditor({ noteId }: { noteId: string }) {
         </div>
       </div>
 
-      <PageColumn
-        note={note}
-        pages={pages}
-        scale={scale}
-        tool={tool}
-        color={tool === "highlighter" ? highlight : color}
-        size={tool === "highlighter" ? HIGHLIGHTER_TUNING.size : size}
-        focusBlockId={focusBlockId}
-        onFocusBlock={setFocusBlockId}
-      />
+      <div className="flex flex-1">
+        <PageColumn
+          note={note}
+          pages={pages}
+          scale={scale}
+          tool={tool}
+          color={tool === "highlighter" ? highlight : color}
+          size={tool === "highlighter" ? HIGHLIGHTER_TUNING.size : size}
+          focusBlockId={focusBlockId}
+          onFocusBlock={setFocusBlockId}
+        />
+        <NoteSidebar note={note} />
+      </div>
     </div>
   );
 }
@@ -137,6 +143,14 @@ interface PageColumnProps {
 function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFocusBlock }: PageColumnProps) {
   const store = useStore();
 
+  // Search results and card sources link to /notes/<id>#page=<pageId>: jump there once pages are known.
+  useEffect(() => {
+    const match = window.location.hash.match(/page=([^&]+)/);
+    if (!match) return;
+    const el = document.querySelector(`[data-page-id="${match[1]}"]`);
+    el?.scrollIntoView({ block: "start" });
+  }, [pages.length]);
+
   async function addPage(after?: Page) {
     const base = after ?? pages[pages.length - 1];
     const op = store.create("page", {
@@ -160,6 +174,9 @@ function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFoc
     for (const b of await store.listTextBlocks(page.id)) {
       ops.push(store.create("textBlock", { pageId: pageOp.entityId, x: b.x, y: b.y, width: b.width, text: b.text, fontSize: b.fontSize }));
     }
+    for (const img of await store.listImageBlocks(page.id)) {
+      ops.push(store.create("imageBlock", { pageId: pageOp.entityId, x: img.x, y: img.y, width: img.width, height: img.height, assetId: img.assetId }));
+    }
     const ids = [...note.pageIds];
     ids.splice(ids.indexOf(page.id) + 1, 0, pageOp.entityId);
     ops.push(store.update("note", note, { pageIds: ids }));
@@ -173,6 +190,18 @@ function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFoc
 
   async function setBackground(page: Page, background: Background) {
     await store.commit([store.update("page", page, { background })]);
+  }
+
+  async function addImages(page: Page, files: File[]) {
+    let offset = 0;
+    for (const file of files) {
+      try {
+        await importImageToPage(store, page, file, { x: 40 + offset, y: 40 + offset });
+        offset += 24;
+      } catch (e) {
+        window.alert(e instanceof Error ? e.message : "That image could not be added.");
+      }
+    }
   }
 
   return (
@@ -193,6 +222,7 @@ function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFoc
           onDuplicate={() => duplicatePage(page)}
           onDelete={() => deletePage(page)}
           onBackground={(b) => setBackground(page, b)}
+          onAddImages={(files) => void addImages(page, files)}
         />
       ))}
       <button type="button" onClick={() => addPage()} className="rounded-full border border-line bg-card px-4 py-2 text-sm text-ink hover:border-accent/60">
@@ -216,6 +246,7 @@ interface PageSlotProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onBackground: (b: Background) => void;
+  onAddImages: (files: File[]) => void;
 }
 
 function PageSlot(props: PageSlotProps) {
@@ -250,6 +281,20 @@ function PageSlot(props: PageSlotProps) {
               </option>
             ))}
           </select>
+          <label className="cursor-pointer hover:text-ink">
+            add image
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                props.onAddImages(files);
+              }}
+            />
+          </label>
           <button type="button" onClick={props.onAddAfter} className="hover:text-ink">
             + page after
           </button>
@@ -273,6 +318,7 @@ function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock }
   const store = useStore();
   const strokes = useLiveQuery((s) => s.listStrokes(page.id), [page.id]);
   const storedBlocks = useLiveQuery((s) => s.listTextBlocks(page.id), [page.id]);
+  const imageBlocks = useLiveQuery((s) => s.listImageBlocks(page.id), [page.id]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -290,9 +336,17 @@ function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock }
         delete next[block.id];
         return next;
       });
-      if (text !== block.text) void store.commit([store.update("textBlock", block, { text })]);
+      if (text !== block.text) {
+        void (async () => {
+          await store.commit([store.update("textBlock", block, { text })]);
+          const note = await store.get("note", page.noteId);
+          if (!note) return;
+          const linkOp = await linkOpsForNote(store, note);
+          if (linkOp) await store.commit([linkOp]);
+        })();
+      }
     },
-    [store],
+    [store, page.noteId],
   );
 
   useEffect(() => {
@@ -302,7 +356,7 @@ function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock }
     };
   }, []);
 
-  if (!strokes || !storedBlocks) return null;
+  if (!strokes || !storedBlocks || !imageBlocks) return null;
 
   return (
     <PageView
@@ -310,6 +364,7 @@ function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock }
       scale={scale}
       strokes={strokes}
       textBlocks={blocks}
+      imageBlocks={imageBlocks}
       tool={tool}
       color={color}
       size={size}
@@ -338,6 +393,8 @@ function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock }
         clearTimeout(timers.current[block.id]);
         void store.commit([store.delete("textBlock", block)]);
       }}
+      onImageMove={(block: ImageBlock, x, y) => void store.commit([store.update("imageBlock", block, { x, y })])}
+      onImageDelete={(block: ImageBlock) => void store.commit([store.delete("imageBlock", block)])}
     />
   );
 }

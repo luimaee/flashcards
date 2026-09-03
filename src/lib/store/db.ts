@@ -137,6 +137,11 @@ export class Store {
     return () => this.listeners.delete(listener);
   }
 
+  /** Wake listeners after out-of-log writes (assets, PDF text, search entries). */
+  notify() {
+    for (const l of this.listeners) l([]);
+  }
+
   private clock(): Clock {
     return { device: this.device, next: () => (this.seq += 1), now: () => Date.now() };
   }

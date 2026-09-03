@@ -19,6 +19,8 @@ export interface InkCanvasProps {
   color: string;
   size: number;
   eraserRadius?: number;
+  /** Skip the paper fill so a PDF page underneath shows through. */
+  transparent?: boolean;
   /** Extra perfect-freehand options, used by the tuning page. */
   tuning?: Partial<StrokeOptions>;
   showRawPoints?: boolean;
@@ -62,6 +64,7 @@ export function InkCanvas({
   color,
   size,
   eraserRadius = 6,
+  transparent = false,
   tuning,
   showRawPoints = false,
   onStrokeCommit,
@@ -94,10 +97,11 @@ export function InkCanvas({
   useEffect(() => {
     const ctx = getContext(baseRef.current);
     if (!ctx) return;
-    drawBackground(ctx, width, height, background, COLORS);
+    if (transparent) ctx.clearRect(0, 0, width, height);
+    else drawBackground(ctx, width, height, background, COLORS);
     drawStrokes(ctx, strokes.filter((s) => !erased.current.has(s.id)), tuning);
     if (showRawPoints) for (const s of strokes) drawRawPoints(ctx, s.points);
-  }, [strokes, background, width, height, getContext, tuning, showRawPoints]);
+  }, [strokes, background, width, height, getContext, tuning, showRawPoints, transparent]);
 
   const renderLive = useCallback(() => {
     frame.current = null;
@@ -137,13 +141,14 @@ export function InkCanvas({
         // Immediate visual feedback: redraw base without the erased strokes.
         const ctx = getContext(baseRef.current);
         if (ctx) {
-          drawBackground(ctx, width, height, background, COLORS);
+          if (transparent) ctx.clearRect(0, 0, width, height);
+          else drawBackground(ctx, width, height, background, COLORS);
           drawStrokes(ctx, strokes.filter((s) => !erased.current.has(s.id)), tuning);
         }
       }
       return hits;
     },
-    [strokes, eraserRadius, getContext, width, height, background, tuning],
+    [strokes, eraserRadius, getContext, width, height, background, tuning, transparent],
   );
 
   const onPointerDown = (ev: ReactPointerEvent<HTMLCanvasElement>) => {

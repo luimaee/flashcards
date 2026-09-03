@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PAGE_SIZES, defaultPageSize } from "@/lib/ink/render";
+import { importPdfAsNote } from "@/lib/store/importers";
 import { useLiveQuery, useStore } from "@/lib/store/react";
 import type { Notebook } from "@/lib/store/schema";
 
@@ -16,6 +17,8 @@ export default function NotesHome() {
   const notebookId = selected ?? notebooks?.[0]?.id ?? null;
   const notes = useLiveQuery((s) => (notebookId ? s.listNotes(notebookId) : Promise.resolve([])), [notebookId]);
   const [newNotebook, setNewNotebook] = useState("");
+  const [importing, setImporting] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   async function createNotebook() {
     const title = newNotebook.trim() || "Untitled notebook";
@@ -34,6 +37,20 @@ export default function NotesHome() {
     const note = await store.get("note", noteOp.entityId);
     if (note) await store.commit([store.update("note", note, { pageIds: [pageOp.entityId] })]);
     router.push(`/notes/${noteOp.entityId}`);
+  }
+
+  async function importPdf(file: File | undefined) {
+    if (!file || !notebookId) return;
+    setImportError(null);
+    setImporting(`Reading ${file.name}…`);
+    try {
+      const { noteId } = await importPdfAsNote(store, file, notebookId, (p) => setImporting(`Reading ${file.name}: page ${p.page} of ${p.total}`));
+      setImporting(null);
+      router.push(`/notes/${noteId}`);
+    } catch (e) {
+      setImporting(null);
+      setImportError(e instanceof Error ? e.message : "That PDF could not be imported.");
+    }
   }
 
   async function deleteNotebook(nb: Notebook) {
@@ -92,15 +109,40 @@ export default function NotesHome() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h1 className="text-lg font-semibold text-ink">{notebooks?.find((n) => n.id === notebookId)?.title ?? "Your notes"}</h1>
-          <button
-            type="button"
-            onClick={createNote}
-            disabled={!notebookId}
-            className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-strong disabled:opacity-50"
-          >
-            New note
-          </button>
+          <div className="flex gap-2">
+            <label className={`cursor-pointer rounded-full border border-line px-4 py-1.5 text-sm font-medium text-ink hover:border-accent/60 ${notebookId ? "" : "pointer-events-none opacity-50"}`}>
+              Import PDF
+              <input
+                type="file"
+                accept="application/pdf,.pdf"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  void importPdf(f);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={createNote}
+              disabled={!notebookId}
+              className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-white hover:bg-accent-strong disabled:opacity-50"
+            >
+              New note
+            </button>
+          </div>
         </div>
+        {importing && (
+          <p role="status" className="mb-3 rounded-xl bg-paper px-4 py-2 text-sm text-ink-soft ring-1 ring-line">
+            {importing}
+          </p>
+        )}
+        {importError && (
+          <p role="alert" className="mb-3 rounded-xl bg-warn-soft px-4 py-2 text-sm text-warn">
+            {importError}
+          </p>
+        )}
         {notebooks && notebooks.length === 0 && (
           <p className="rounded-2xl border border-dashed border-line px-5 py-10 text-center text-sm text-ink-soft">
             Make a notebook to start. Notes live only in this browser until you export them.
