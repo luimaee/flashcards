@@ -26,10 +26,37 @@ saved anywhere you did not ask for.
 - Exports an Anki-ready CSV with proper quoting and Anki header directives
 - Runs in **sample mode** with no API key, so you can try it for free
 
+## Notes: write first, then make cards
+
+Open **Notes** from the homepage (or go to `/notes`). It is a small note-taking
+surface that feeds the same card pipeline:
+
+- Pen, highlighter and eraser with pressure (Apple Pencil in Safari on iPad
+  works; touch is ignored while the pen is active). Typed text blocks sit on
+  the same page as ink. Page backgrounds: plain, lined, grid, dots.
+- Notebooks, notes, pages. Add, duplicate and delete pages; long notes only
+  render the pages near you.
+- Import a PDF as a note and write on top of it. Import images onto pages.
+- Tags, `[[Note title]]` links with backlinks, and **Cmd+K / Ctrl+K** search
+  across titles, tags, typed text and PDF text.
+- **Select** a region and press **Make cards from this**. Every card keeps a
+  pointer to that exact spot: "Show on the page" reopens the note there.
+- **Study**: one card at a time, Got it / Not yet, until every card is known.
+
+Everything in Notes stays in this browser (IndexedDB). Nothing is uploaded,
+metered or synced. Use **Export all notes to a file** to back up or move to
+another device, and **Import a notes file** on the other side. Imports never
+overwrite your work: if the same note was edited on both devices, both
+versions are kept and labelled.
+
+Handwriting is captured only. It is not read into text yet, so cards come
+from typed or PDF text. The `/ink-test` page lets you tune the pen feel.
+
 ## What it does not do
 
-No accounts, no saved decks, no spaced repetition, no OCR, no mobile app.
-Refreshing the page clears your cards. That is on purpose.
+No accounts, no server-side storage, no spaced repetition, no OCR, no mobile
+app, no sync. Cards made from a file are cleared on refresh; cards made from
+Notes are kept on the device with the notes.
 
 ## Setup
 

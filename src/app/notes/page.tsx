@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PAGE_SIZES, defaultPageSize } from "@/lib/ink/render";
 import { importPdfAsNote } from "@/lib/store/importers";
+import { exportAll, importAll } from "@/lib/store/transfer";
 import { useLiveQuery, useStore } from "@/lib/store/react";
 import type { Notebook } from "@/lib/store/schema";
 
@@ -53,6 +54,44 @@ export default function NotesHome() {
     }
   }
 
+  async function exportEverything() {
+    setImportError(null);
+    setImporting("Preparing your export…");
+    try {
+      const file = await exportAll(store);
+      const blob = new Blob([JSON.stringify(file)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lecture-cards-notes-${new Date().toISOString().slice(0, 10)}.lecturecards.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setImportError("The export could not be created.");
+    } finally {
+      setImporting(null);
+    }
+  }
+
+  async function importEverything(file: File | undefined) {
+    if (!file) return;
+    setImportError(null);
+    setImporting(`Importing ${file.name}…`);
+    try {
+      const data: unknown = JSON.parse(await file.text());
+      const summary = await importAll(store, data);
+      setImporting(null);
+      window.alert(
+        `Imported ${summary.applied} change${summary.applied === 1 ? "" : "s"}${summary.forked > 0 ? `, ${summary.forked} kept as conflict copies` : ""}. ${summary.skipped} already present.`,
+      );
+    } catch (e) {
+      setImporting(null);
+      setImportError(e instanceof Error ? e.message : "That file could not be imported.");
+    }
+  }
+
   async function deleteNotebook(nb: Notebook) {
     if (!window.confirm(`Delete notebook "${nb.title}" and its notes? You can restore it from the trash later.`)) return;
     const ops = [store.delete("notebook", nb)];
@@ -86,6 +125,25 @@ export default function NotesHome() {
             </li>
           ))}
         </ul>
+        <div className="mb-4 mt-6 flex flex-col gap-1 text-xs">
+          <button type="button" onClick={exportEverything} className="rounded-lg border border-line px-2 py-1 text-left text-ink-soft hover:text-ink">
+            Export all notes to a file
+          </button>
+          <label className="cursor-pointer rounded-lg border border-line px-2 py-1 text-ink-soft hover:text-ink">
+            Import a notes file
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                void importEverything(f);
+              }}
+            />
+          </label>
+          <span className="text-ink-soft">Move notes between devices or keep a backup. Imports never overwrite: conflicting edits are kept as copies.</span>
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();
