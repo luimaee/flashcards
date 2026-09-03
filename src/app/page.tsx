@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { CardEditor } from "@/components/CardEditor";
 import { SourceForm } from "@/components/SourceForm";
@@ -125,6 +126,13 @@ export default function Home() {
         </h1>
         <p className="mt-3 max-w-xl text-base leading-7 text-ink-soft">
           Upload a lecture PDF or paste your notes. You get 10 editable flashcards, each with the part of the lecture it came from, ready to export to Anki.
+        </p>
+        <p className="mt-2 text-sm text-ink-soft">
+          Or write your own notes first:{" "}
+          <Link href="/notes" className="font-medium text-accent underline underline-offset-2">
+            open Notes
+          </Link>
+          .
         </p>
       </header>
 
