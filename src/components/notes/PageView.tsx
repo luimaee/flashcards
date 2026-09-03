@@ -4,9 +4,11 @@ import { useMemo, type PointerEvent as ReactPointerEvent } from "react";
 import { InkCanvas, type CanvasTool } from "@/components/ink/InkCanvas";
 import { ImageLayer } from "@/components/notes/ImageLayer";
 import { PdfPageLayer } from "@/components/notes/PdfPageLayer";
+import { RegionSelectLayer } from "@/components/notes/RegionSelectLayer";
 import { TextBlockEditor } from "@/components/notes/TextBlockEditor";
 import { unpackPoints } from "@/lib/ink/geometry";
 import type { DrawableStroke } from "@/lib/ink/render";
+import type { Region } from "@/lib/notes/region";
 import type { ImageBlock, Page, Stroke, TextBlock } from "@/lib/store/schema";
 
 export type PageTool = CanvasTool | "text" | "select";
@@ -21,6 +23,10 @@ export interface PageViewProps {
   color: string;
   size: number;
   focusBlockId?: string | null;
+  /** Region shown as selected (a pending selection or a card source). */
+  highlightRegion?: Region | null;
+  onRegionSelect?: (region: Region) => void;
+  onRegionClear?: () => void;
   onStrokeCommit: (stroke: DrawableStroke) => void;
   onErase: (strokeIds: string[]) => void;
   onTextCreate: (x: number, y: number) => void;
@@ -39,7 +45,7 @@ const DEFAULT_TEXT_WIDTH = 320;
  * any of them.
  */
 export function PageView(props: PageViewProps) {
-  const { page, scale, strokes, textBlocks, imageBlocks, tool, color, size, focusBlockId } = props;
+  const { page, scale, strokes, textBlocks, imageBlocks, tool, color, size, focusBlockId, highlightRegion } = props;
 
   const drawable = useMemo<DrawableStroke[]>(
     () => strokes.map((s) => ({ id: s.id, tool: s.tool, color: s.color, size: s.size, points: unpackPoints(s.points, s.count) })),
@@ -75,11 +81,21 @@ export function PageView(props: PageViewProps) {
           onErase={props.onErase}
         />
       </div>
+      {tool === "select" && (
+        <RegionSelectLayer scale={scale} highlight={highlightRegion} onSelect={(r) => props.onRegionSelect?.(r)} onClear={() => props.onRegionClear?.()} />
+      )}
+      {tool !== "select" && highlightRegion && (
+        <div
+          className="pointer-events-none absolute rounded-sm border-2 border-accent bg-accent/10"
+          style={{ left: highlightRegion[0] * scale, top: highlightRegion[1] * scale, width: (highlightRegion[2] - highlightRegion[0]) * scale, height: (highlightRegion[3] - highlightRegion[1]) * scale }}
+        />
+      )}
       <ImageLayer blocks={imageBlocks} scale={scale} interactive={tool === "select"} onMove={props.onImageMove} onDelete={props.onImageDelete} />
-      {/* Text layer. Only catches pointer events for the text/select tools so ink passes through otherwise. */}
+      {/* Text layer. The wrapper only catches clicks in text mode (to place a block); blocks themselves are
+          interactive in text and select modes, so marquee drags on empty space reach the select layer. */}
       <div
         className="absolute inset-0"
-        style={{ pointerEvents: textInteractive ? "auto" : "none", cursor: tool === "text" ? "text" : "default" }}
+        style={{ pointerEvents: tool === "text" ? "auto" : "none", cursor: tool === "text" ? "text" : "default" }}
         onPointerDown={onPlaceText}
       >
         {textBlocks.map((block) => (

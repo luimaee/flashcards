@@ -13,6 +13,7 @@ export function NoteSidebar({ note }: { note: Note }) {
   const allNotes = useLiveQuery((s) => s.listNotes(), []);
   const linked = (allNotes ?? []).filter((n) => note.links.includes(n.id));
   const backlinks = (allNotes ?? []).filter((n) => n.links.includes(note.id) && n.id !== note.id);
+  const decks = useLiveQuery((s) => s.listDecks(note.id), [note.id]);
 
   async function addTag() {
     const tag = normaliseTag(tagDraft);
@@ -57,6 +58,21 @@ export function NoteSidebar({ note }: { note: Note }) {
             className="w-full rounded-lg border border-line bg-paper px-2 py-1 text-xs outline-none focus:border-accent"
           />
         </form>
+      </section>
+
+      <section>
+        <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-ink-soft">Card decks</h3>
+        {(decks ?? []).length === 0 && <p className="text-xs text-ink-soft">Use Select, drag over text, then &ldquo;Make cards from this&rdquo;.</p>}
+        <ul className="flex flex-col gap-1">
+          {(decks ?? []).map((d) => (
+            <li key={d.id}>
+              <Link href={`/notes/cards/${d.id}`} className="text-accent underline underline-offset-2">
+                {d.title}
+              </Link>
+              <span className="ml-1 text-xs text-ink-soft">{d.cardIds.length} cards</span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section>

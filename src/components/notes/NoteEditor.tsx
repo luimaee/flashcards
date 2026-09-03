@@ -6,6 +6,9 @@ import { NoteSidebar } from "@/components/notes/NoteSidebar";
 import { DEFAULT_TEXT_WIDTH, PageView, type PageTool } from "@/components/notes/PageView";
 import { HANDWRITING_TUNING, HIGHLIGHTER_TUNING, bboxOf, packPoints } from "@/lib/ink/geometry";
 import type { Background, DrawableStroke } from "@/lib/ink/render";
+import { useRouter } from "next/navigation";
+import { MakeCardsError, makeCardsFromRegion } from "@/lib/notes/makeCards";
+import type { Region } from "@/lib/notes/region";
 import { importImageToPage } from "@/lib/store/importers";
 import { linkOpsForNote } from "@/lib/store/links";
 import { useLiveQuery, useStore } from "@/lib/store/react";
@@ -36,6 +39,7 @@ export function NoteEditor({ noteId }: { noteId: string }) {
   const [highlight, setHighlight] = useState(HIGHLIGHT_COLORS[0]);
   const [size, setSize] = useState(HANDWRITING_TUNING.size);
   const [focusBlockId, setFocusBlockId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ pageId: string; region: Region } | null>(null);
   const viewportWidth = useSyncExternalStore(subscribeToResize, () => window.innerWidth, () => 1024);
 
   const pageWidth = pages?.[0]?.width ?? 595;
@@ -62,7 +66,10 @@ export function NoteEditor({ noteId }: { noteId: string }) {
             <button
               key={t.id}
               type="button"
-              onClick={() => setTool(t.id)}
+              onClick={() => {
+                setTool(t.id);
+                if (t.id !== "select") setSelection(null);
+              }}
               className={`rounded-full px-3 py-1 text-xs font-medium ${tool === t.id ? "bg-ink text-paper" : "text-ink-soft hover:bg-line/60"}`}
             >
               {t.label}
@@ -87,6 +94,8 @@ export function NoteEditor({ noteId }: { noteId: string }) {
           size={tool === "highlighter" ? HIGHLIGHTER_TUNING.size : size}
           focusBlockId={focusBlockId}
           onFocusBlock={setFocusBlockId}
+          selection={selection}
+          onSelectionChange={setSelection}
         />
         <NoteSidebar note={note} />
       </div>
@@ -137,11 +146,53 @@ interface PageColumnProps {
   size: number;
   focusBlockId: string | null;
   onFocusBlock: (id: string | null) => void;
+  selection: { pageId: string; region: Region } | null;
+  onSelectionChange: (s: { pageId: string; region: Region } | null) => void;
 }
 
 /** Renders every page slot at its final size, but mounts the heavy page view only near the viewport. */
-function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFocusBlock }: PageColumnProps) {
+function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFocusBlock, selection, onSelectionChange }: PageColumnProps) {
   const store = useStore();
+  const router = useRouter();
+  const [making, setMaking] = useState(false);
+  const [makeError, setMakeError] = useState<string | null>(null);
+  const [hashRegion, setHashRegion] = useState<{ pageId: string; region: Region } | null>(null);
+
+  // A card's "show on the page" link carries #page=<id>&region=x0,y0,x1,y1.
+  useEffect(() => {
+    const read = () => {
+      const page = window.location.hash.match(/page=([^&]+)/)?.[1];
+      const region = window.location.hash.match(/region=([-\d.,]+)/)?.[1];
+      if (page && region) {
+        const nums = region.split(",").map(Number);
+        if (nums.length === 4 && nums.every((n) => Number.isFinite(n))) {
+          setHashRegion({ pageId: page, region: [nums[0], nums[1], nums[2], nums[3]] });
+          return;
+        }
+      }
+      setHashRegion(null);
+    };
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, []);
+
+  async function makeCards() {
+    if (!selection) return;
+    const page = pages.find((p) => p.id === selection.pageId);
+    if (!page) return;
+    setMaking(true);
+    setMakeError(null);
+    try {
+      const { deckId } = await makeCardsFromRegion(store, note, page, selection.region);
+      onSelectionChange(null);
+      router.push(`/notes/cards/${deckId}`);
+    } catch (e) {
+      setMakeError(e instanceof MakeCardsError || e instanceof Error ? e.message : "The cards could not be made.");
+    } finally {
+      setMaking(false);
+    }
+  }
 
   // Search results and card sources link to /notes/<id>#page=<pageId>: jump there once pages are known.
   useEffect(() => {
@@ -206,6 +257,31 @@ function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFoc
 
   return (
     <div className="flex flex-1 flex-col items-center gap-6 bg-line/30 px-4 py-6">
+      {tool === "select" && (
+        <div className="sticky top-14 z-10 flex w-full max-w-2xl flex-wrap items-center justify-between gap-2 rounded-2xl border border-line bg-card px-4 py-2 text-sm shadow-sm">
+          <span className="text-ink-soft">{selection ? "Region selected." : "Drag over typed or PDF text to select a region."}</span>
+          <span className="flex gap-2">
+            <button
+              type="button"
+              onClick={makeCards}
+              disabled={!selection || making}
+              className="rounded-full bg-accent px-4 py-1.5 font-medium text-white hover:bg-accent-strong disabled:opacity-50"
+            >
+              {making ? "Making cards…" : "Make cards from this"}
+            </button>
+            {selection && (
+              <button type="button" onClick={() => onSelectionChange(null)} className="rounded-full px-3 py-1.5 text-ink-soft hover:bg-line/60">
+                Clear
+              </button>
+            )}
+          </span>
+          {makeError && (
+            <p role="alert" className="w-full text-xs text-warn">
+              {makeError}
+            </p>
+          )}
+        </div>
+      )}
       {pages.map((page, index) => (
         <PageSlot
           key={page.id}
@@ -218,6 +294,9 @@ function PageColumn({ note, pages, scale, tool, color, size, focusBlockId, onFoc
           size={size}
           focusBlockId={focusBlockId}
           onFocusBlock={onFocusBlock}
+          highlightRegion={selection?.pageId === page.id ? selection.region : hashRegion?.pageId === page.id ? hashRegion.region : null}
+          onRegionSelect={(region) => onSelectionChange({ pageId: page.id, region })}
+          onRegionClear={() => onSelectionChange(null)}
           onAddAfter={() => addPage(page)}
           onDuplicate={() => duplicatePage(page)}
           onDelete={() => deletePage(page)}
@@ -247,6 +326,9 @@ interface PageSlotProps {
   onDelete: () => void;
   onBackground: (b: Background) => void;
   onAddImages: (files: File[]) => void;
+  highlightRegion: Region | null;
+  onRegionSelect: (region: Region) => void;
+  onRegionClear: () => void;
 }
 
 function PageSlot(props: PageSlotProps) {
@@ -314,7 +396,7 @@ function PageSlot(props: PageSlotProps) {
 }
 
 /** A mounted page: loads its strokes and text blocks and commits edits as ops. */
-function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock }: PageSlotProps) {
+function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock, highlightRegion, onRegionSelect, onRegionClear }: PageSlotProps) {
   const store = useStore();
   const strokes = useLiveQuery((s) => s.listStrokes(page.id), [page.id]);
   const storedBlocks = useLiveQuery((s) => s.listTextBlocks(page.id), [page.id]);
@@ -369,6 +451,9 @@ function LivePage({ page, scale, tool, color, size, focusBlockId, onFocusBlock }
       color={color}
       size={size}
       focusBlockId={focusBlockId}
+      highlightRegion={highlightRegion}
+      onRegionSelect={onRegionSelect}
+      onRegionClear={onRegionClear}
       onStrokeCommit={(s: DrawableStroke) =>
         void store.commit([
           store.create("stroke", { pageId: page.id, tool: s.tool, color: s.color, size: s.size, points: packPoints(s.points), count: s.points.length, bbox: bboxOf(s.points, s.size) }),

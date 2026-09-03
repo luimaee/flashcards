@@ -218,15 +218,16 @@ export default function Home() {
 
           <ul className="flex flex-col gap-4">
             {cards.map((card, index) => (
-              <CardEditor
-                key={card.id}
-                card={card}
-                index={index}
-                busy={state.busyCardId === card.id || isWorking}
-                onChange={(updated) => dispatch({ type: "updateCard", card: updated })}
-                onDelete={(id) => dispatch({ type: "deleteCard", id })}
-                onRegenerate={regenerateOne}
-              />
+              <li key={card.id}>
+                <CardEditor
+                  card={card}
+                  index={index}
+                  busy={state.busyCardId === card.id || isWorking}
+                  onChange={(updated) => dispatch({ type: "updateCard", card: updated })}
+                  onDelete={(id) => dispatch({ type: "deleteCard", id })}
+                  onRegenerate={regenerateOne}
+                />
+              </li>
             ))}
           </ul>
 

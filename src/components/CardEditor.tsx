@@ -25,7 +25,7 @@ export function CardEditor({ card, index, busy, onChange, onDelete, onRegenerate
   const dId = useId();
 
   return (
-    <li className="rounded-2xl border border-line bg-card p-5 shadow-sm">
+    <div className="rounded-2xl border border-line bg-card p-5 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-ink-soft">Card {index + 1}</span>
         <div className="flex items-center gap-2">
@@ -106,6 +106,6 @@ export function CardEditor({ card, index, busy, onChange, onDelete, onRegenerate
           {card.sourceExcerpt}
         </blockquote>
       </details>
-    </li>
+    </div>
   );
 }
