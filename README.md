@@ -58,9 +58,13 @@ the latest version: `git pull` then `npm run setup`.
    **Regenerate** swaps one card for a different one.
 3. Click **Study**. Tap a card to reveal the answer, then **Got it** or
    **Not yet**. Cards you miss come back until you know them all.
-4. Done. Refreshing the page clears the cards, which is on purpose; nothing
-   is stored anywhere. If you also use Anki, **Export CSV for Anki** gives
-   you a file Anki imports directly.
+4. Every deck is saved automatically as a file on your computer, in a
+   folder called **LectureCards** in your home folder (for example
+   `C:\Users\you\LectureCards` or `/Users/you/LectureCards`). The home
+   screen lists your saved decks; open one to keep editing or studying it.
+   Deleting a deck moves its file to a `trash` subfolder, never destroys it.
+   If you also use Anki, **Export CSV for Anki** gives you a file Anki
+   imports directly.
 
 Cards are generated automatically and can be wrong. The passage is there
 so you can check. Trust the lecture, not the card.
@@ -95,7 +99,9 @@ Check https://www.anthropic.com/pricing before relying on these numbers.
 - 45-second generation timeout; 30 runs per 10 minutes per client.
 - Two-column PDFs, tables and formulas can come out scrambled by text
   extraction. Hyphenated line breaks are repaired.
-- Cards live in the browser tab. Study or export before closing it.
+- Decks are plain JSON files in the LectureCards folder. Back that folder
+  up like any other. Set `LECTURE_CARDS_DIR` in `.env.local` to use a
+  different folder (a cloud-synced one, for instance).
 
 ## Development
 

@@ -27,7 +27,9 @@ Start with one lecture. Ten minutes, one win.
 
 ## Things to know
 
-- Nothing is stored. Refreshing clears the cards. That is on purpose.
+- Every deck you make is saved automatically in a folder called
+  **LectureCards** in your home folder. The home screen lists them; open
+  one to keep studying. Back that folder up like any other.
 - Cards can be wrong. The passage is there so you can check.
 - Without an API key you get simple "sample" cards. Ask whoever set it up
   about connecting Claude for better ones.

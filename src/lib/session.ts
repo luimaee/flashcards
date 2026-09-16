@@ -7,10 +7,20 @@ import type { Flashcard } from "./flashcards/schema";
  *   - a failed "regenerate all" never throws away the cards on screen;
  *   - a failed first generation keeps the pasted text;
  *   - editing or deleting marks the session as edited so the UI can warn
- *     before replacing everything.
+ *     before replacing everything;
+ *   - a deck, once saved to the local library, keeps its id across edits
+ *     and regenerations, so every change lands in the same file.
  */
 
 export type Phase = "idle" | "working" | "done";
+
+export interface DeckRef {
+  id: string;
+  title: string;
+  folder: string | null;
+}
+
+export type SaveState = "idle" | "saving" | "saved" | "error";
 
 export interface SessionState {
   phase: Phase;
@@ -23,6 +33,11 @@ export interface SessionState {
   busyCardId: string | null;
   edited: boolean;
   workingMessage: string | null;
+  /** The saved deck this session belongs to, once it has been written to disk. */
+  deck: DeckRef | null;
+  saveState: SaveState;
+  saveError: string | null;
+  savedAt: number | null;
 }
 
 export type SessionAction =
@@ -37,7 +52,13 @@ export type SessionAction =
   | { type: "updateCard"; card: Flashcard }
   | { type: "deleteCard"; id: string }
   | { type: "dismissError" }
-  | { type: "startOver" };
+  | { type: "startOver" }
+  | { type: "deckCreated"; deck: DeckRef; savedAt: number }
+  | { type: "deckOpened"; deck: DeckRef; cards: Flashcard[]; source: SourceInput; savedAt: number }
+  | { type: "setTitle"; title: string }
+  | { type: "saveStart" }
+  | { type: "saveSuccess"; savedAt: number }
+  | { type: "saveFailure"; message: string };
 
 export const initialSession: SessionState = {
   phase: "idle",
@@ -49,6 +70,10 @@ export const initialSession: SessionState = {
   busyCardId: null,
   edited: false,
   workingMessage: null,
+  deck: null,
+  saveState: "idle",
+  saveError: null,
+  savedAt: null,
 };
 
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
@@ -122,10 +147,36 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
       return { ...state, edited: true, cards: state.cards.filter((c) => c.id !== action.id) };
 
     case "dismissError":
-      return { ...state, error: null };
+      return { ...state, error: null, saveError: null };
 
     case "startOver":
       return initialSession;
+
+    case "deckCreated":
+      return { ...state, deck: action.deck, saveState: "saved", saveError: null, savedAt: action.savedAt };
+
+    case "deckOpened":
+      return {
+        ...initialSession,
+        phase: "done",
+        deck: action.deck,
+        cards: action.cards,
+        source: action.source,
+        saveState: "saved",
+        savedAt: action.savedAt,
+      };
+
+    case "setTitle":
+      return state.deck ? { ...state, deck: { ...state.deck, title: action.title } } : state;
+
+    case "saveStart":
+      return { ...state, saveState: "saving", saveError: null };
+
+    case "saveSuccess":
+      return { ...state, saveState: "saved", saveError: null, savedAt: action.savedAt };
+
+    case "saveFailure":
+      return { ...state, saveState: "error", saveError: action.message };
 
     default:
       return state;

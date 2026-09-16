@@ -37,13 +37,16 @@ src/
     layout.tsx               root layout, fonts, metadata
     page.tsx                 the whole UI: upload/paste -> progress -> editable results -> study
     globals.css              Tailwind v4 theme tokens (calm palette, light + dark)
-    api/generate/route.ts    POST: file or text -> cards. GET: provider info for the privacy note
+    api/generate/route.ts    POST: file or text -> cards (+ source text). GET: provider info
+    api/decks/route.ts       GET list saved decks, POST save a new deck
+    api/decks/[id]/route.ts  GET / PUT / DELETE one deck (DELETE moves it to trash/)
   components/
     SourceForm.tsx           upload drop zone + paste textarea (controlled by the page)
     CardEditor.tsx           one editable card (question, answer, difficulty, tags, source)
     StudyMode.tsx            one card at a time, Got it / Not yet, nothing saved
   lib/
-    session.ts               pure reducer for page state (keeps cards on failure, edited flag)
+    session.ts               pure reducer for page state (cards, deck ref, save state)
+    decks/store.ts           local deck library: one JSON file per deck in ~/LectureCards
     text.ts                  normalisation, hyphen repair, sentence/line splitting, limits
     upload.ts                server-side upload checks (size + %PDF- magic bytes)
     pdf.ts                   PDF text extraction via unpdf, per page; rejects mostly-image PDFs
@@ -73,6 +76,7 @@ test/fixtures/               one real open-access paper (CC BY) for corpus tests
 | `ANTHROPIC_API_KEY`  | Required for `anthropic`. Separately funded API key only.      | unset            |
 | `ANTHROPIC_MODEL`    | Model id for the anthropic provider                            | `claude-opus-5`  |
 | `ANTHROPIC_BASE_URL` | Testing only: point the SDK at a proxy or fake endpoint        | unset            |
+| `LECTURE_CARDS_DIR`  | Folder for saved decks                                          | `~/LectureCards` |
 
 Rules: no personal logins, Claude Code sessions, OAuth tokens, or Max
 subscription credentials in the app, ever. The Anthropic provider constructs
@@ -108,6 +112,16 @@ Starts with Anki directives (`#separator:Comma`, `#html:false`,
 quoted row per card. Quotes doubled, CRLF, UTF-8 BOM. No plain header row:
 Anki would import it as a note.
 
+## Local deck library
+
+`src/lib/decks/store.ts`. One JSON file per deck in `<dir>/decks/`, atomic
+writes (temp + rename), ids validated against a strict pattern so a request
+can never escape the folder, deletes move files to `<dir>/trash/`, damaged
+or foreign files are skipped and never touched. The deck file keeps the
+source text so cards can be regenerated later; this is the student's own
+material on their own disk. The page auto-saves title and cards 700 ms
+after the last change and shows Saving / Saved / Not saved.
+
 ## Page state
 
 `src/lib/session.ts` is a pure reducer. Guarantees covered by tests: a
@@ -118,7 +132,8 @@ asks before replacing everything. Study progress is not persisted.
 ## Privacy and safety behaviour
 
 - Uploads are read into memory, checked by size and magic bytes on the
-  server, parsed, and discarded. Nothing is written to disk or a database.
+  server, parsed, and discarded. The only thing written to disk is the deck
+  file the student asked for, in their own folder.
 - Server logs are one JSON line per event with counts, codes, and timings.
   They never include lecture text or file contents.
 - Error responses carry a short `code` and a plain-language `message` only.
@@ -137,7 +152,7 @@ asks before replacing everything. Study progress is not persisted.
 
 ## Do not add without discussion
 
-Accounts, payments, a database, spaced repetition or saved study progress,
+Accounts, payments, a database server, spaced repetition or saved study progress,
 social or sharing features, mobile apps, university integrations,
 multi-user admin, analytics or tracking, storing uploaded files, OCR, the
 notes surface from the `notes-surface` branch, or any provider wired to

@@ -158,6 +158,10 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const result = await generateFromText({ text: sourceText, count, avoid });
+    // The extracted text goes back to the browser so the deck can be saved
+    // with it and regenerated later. It is the student's own material and
+    // the app runs on their machine.
+    const sourceName = file instanceof File ? file.name : undefined;
     log("generated", {
       key,
       source: sourceKind,
@@ -166,7 +170,7 @@ export async function POST(request: Request): Promise<Response> {
       cards: result.cards.length,
       ms: Date.now() - started,
     });
-    return Response.json(result);
+    return Response.json({ ...result, sourceText: avoid.length > 0 ? undefined : sourceText, sourceName, sourceKind });
   } catch (error) {
     if (error instanceof GenerationError) {
       log("generation-failed", { key, source: sourceKind, code: error.code, detail: error.detail ?? null, ms: Date.now() - started });
