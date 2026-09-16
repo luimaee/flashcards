@@ -9,6 +9,20 @@ export to a CSV file that Anki imports directly.
 <!-- screenshot: homepage with the upload area and paste tab -->
 <!-- screenshot: results page with editable cards and the "From the lecture" excerpt open -->
 
+## Try it
+
+**Students:** read [docs/for-students.md](docs/for-students.md). It explains,
+without any coding, how to open the app and do a first study session.
+
+**Put it online in one click** (free, your own copy, sample mode by default):
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fluimaee%2Fflashcards&project-name=lecture-cards&repository-name=lecture-cards)
+
+After deploying, share the link. To turn on real AI cards, add
+`AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in the Vercel project's
+environment variables and redeploy. You pay for that key; see the cost
+table below.
+
 ## Why this exists
 
 Students already have the material. What they lack is time. Most flashcard
