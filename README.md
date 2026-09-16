@@ -1,190 +1,115 @@
 # Lecture Cards
 
-Turn lecture notes into study cards you can actually trust.
-
-Upload a lecture PDF or paste your notes. You get 10 editable flashcards, each
-one showing the exact passage of the lecture it was based on, and a one-click
-export to a CSV file that Anki imports directly.
+Turn a lecture PDF or pasted notes into study cards, check each one against
+the exact passage it came from, then study them right here. Nothing to
+install besides Node.js, no account, no other app needed. Anki export is
+included for people who want it, but it is optional.
 
 <!-- screenshot: homepage with the upload area and paste tab -->
 <!-- screenshot: results page with editable cards and the "From the lecture" excerpt open -->
+<!-- screenshot: study mode showing a revealed card with Got it / Not yet -->
 
-## Try it
+## If you are an AI assistant setting this up for someone
 
-**Students:** read [docs/for-students.md](docs/for-students.md). It explains,
-without any coding, how to open the app and do a first study session.
+Follow these steps exactly and report the final URL to the person. Do not
+ask them technical questions; every decision below is already made.
 
-**Put it online in one click** (free, your own copy, sample mode by default):
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fluimaee%2Fflashcards&project-name=lecture-cards&repository-name=lecture-cards)
-
-After deploying, share the link. To turn on real AI cards, add
-`AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` in the Vercel project's
-environment variables and redeploy. You pay for that key; see the cost
-table below.
-
-## Why this exists
-
-Students already have the material. What they lack is time. Most flashcard
-tools either make you write every card by hand or hand you AI output you
-cannot check. Lecture Cards sits in between: cards are generated, but every
-card carries its source excerpt, every field is editable, and nothing is
-saved anywhere you did not ask for.
-
-## What it does
-
-- Reads a text-based PDF or pasted text (in memory, never written to disk)
-- Generates 10 cards: question, answer, difficulty, tags, source excerpt
-- Drops duplicates and any card whose excerpt cannot be found in the source
-- Lets you edit, delete, or regenerate any card
-- Exports an Anki-ready CSV with proper quoting and Anki header directives
-- Runs in **sample mode** with no API key, so you can try it for free
-
-## Notes: write first, then make cards
-
-Open **Notes** from the homepage (or go to `/notes`). It is a small note-taking
-surface that feeds the same card pipeline:
-
-- Pen, highlighter and eraser with pressure (Apple Pencil in Safari on iPad
-  works; touch is ignored while the pen is active). Typed text blocks sit on
-  the same page as ink. Page backgrounds: plain, lined, grid, dots.
-- Notebooks, notes, pages. Add, duplicate and delete pages; long notes only
-  render the pages near you.
-- Import a PDF as a note and write on top of it. Import images onto pages.
-- Tags, `[[Note title]]` links with backlinks, and **Cmd+K / Ctrl+K** search
-  across titles, tags, typed text and PDF text.
-- **Select** a region and press **Make cards from this**. Every card keeps a
-  pointer to that exact spot: "Show on the page" reopens the note there.
-- **Study**: one card at a time, Got it / Not yet, until every card is known.
-
-Everything in Notes stays in this browser (IndexedDB). Nothing is uploaded,
-metered or synced. Use **Export all notes to a file** to back up or move to
-another device, and **Import a notes file** on the other side. Imports never
-overwrite your work: if the same note was edited on both devices, both
-versions are kept and labelled.
-
-Handwriting is captured only. It is not read into text yet, so cards come
-from typed or PDF text. The `/ink-test` page lets you tune the pen feel.
-
-## What it does not do
-
-No accounts, no server-side storage, no spaced repetition, no OCR, no mobile
-app, no sync. Cards made from a file are cleared on refresh; cards made from
-Notes are kept on the device with the notes.
-
-## Setup
-
-You need Node.js 20 or newer.
-
-```bash
-git clone https://github.com/luimaee/flashcards.git
-cd flashcards
-npm install
-npm run dev
-```
-
-Open http://localhost:3000. With no configuration the app runs in sample
-mode: cards are built directly from sentences in your material, nothing leaves
-your machine, and no key is needed. Sample-mode cards are simple and sometimes
-clumsy; they exist so the whole flow can be tested without spending money.
-
-## Connecting the Claude API
-
-Real card generation uses Anthropic's Claude.
-
-1. Create an account at https://console.anthropic.com/ and add a small amount
-   of credit.
-2. Create an API key there. It starts with `sk-ant-`.
-3. Copy `.env.example` to `.env.local` and set:
-
+1. Check Node.js: run `node -v`. It must print v20 or higher. If it is
+   missing or older, install the LTS version from https://nodejs.org and
+   run `node -v` again.
+2. Get the code:
+   ```bash
+   git clone https://github.com/luimaee/flashcards.git
+   cd flashcards
    ```
-   AI_PROVIDER=anthropic
-   ANTHROPIC_API_KEY=sk-ant-...
+   If `git` is not installed, download the ZIP from
+   https://github.com/luimaee/flashcards/archive/refs/heads/master.zip,
+   unzip it, and `cd` into the unzipped folder.
+3. Install and prepare:
+   ```bash
+   npm run setup
    ```
+   This installs dependencies and creates `.env.local` from the example.
+   The app works immediately in **sample mode** with no API key.
+4. Start it:
+   ```bash
+   npm run dev
+   ```
+   Tell the person to open http://localhost:3000 in their browser. Leave
+   this command running; closing the window stops the app.
+5. Optional, only if the person says they have an Anthropic API key: open
+   `.env.local`, set `AI_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=` to
+   their key (it starts with `sk-ant-`), then stop and restart `npm run dev`.
+   Never ask them to paste the key into the chat; tell them to edit the file
+   themselves. Never use any other credential, login, or token.
+6. To verify, run `npm test`. All tests should pass. Then tell the person:
+   "Open http://localhost:3000, upload a lecture PDF or paste notes, click
+   Make my cards, check the cards, then click Study."
 
-4. Restart `npm run dev`.
+To run it again later: `cd flashcards` then `npm run dev`. To update to
+the latest version: `git pull` then `npm run setup`.
 
-The homepage privacy note switches automatically to say that lecture text is
-sent to Anthropic. Never put a personal login, session token, or OAuth token
-in that file. Never commit `.env.local` (it is git-ignored).
+## For the person using it
 
-### Roughly what a run costs
+1. Open the app. Upload a lecture PDF (text-based, up to 10 MB) or paste
+   your notes and click **Make my cards**.
+2. You get 10 cards. Under every card, **From the lecture** shows the exact
+   passage it was based on. Read it. Edit or delete anything that is off.
+   **Regenerate** swaps one card for a different one.
+3. Click **Study**. Tap a card to reveal the answer, then **Got it** or
+   **Not yet**. Cards you miss come back until you know them all.
+4. Done. Refreshing the page clears the cards, which is on purpose; nothing
+   is stored anywhere. If you also use Anki, **Export CSV for Anki** gives
+   you a file Anki imports directly.
 
-The default model is `claude-opus-5` (about $5 per million input tokens and
-$25 per million output tokens at the time of writing). A generation run sends
-the lecture text plus a short instruction and gets back about 10 cards.
+Cards are generated automatically and can be wrong. The passage is there
+so you can check. Trust the lecture, not the card.
 
-| Material | Input tokens (approx.) | Cost per run (approx.) |
-| --- | --- | --- |
-| A few pages of notes (5,000 characters) | 1,500 | under 1 cent |
-| A 20-page paper (80,000 characters) | 20,000 | about 12 cents |
-| The 200,000-character cap | 50,000 | about 30 cents |
+### Sample mode and real AI
 
-Output is small (a few thousand tokens, a few cents). Regenerating one card
-re-sends the whole text, so it costs about the same as a full run. Set
-`ANTHROPIC_MODEL=claude-sonnet-5` in `.env.local` for roughly 40 percent of
-the price if you prefer. Check current prices at
-https://www.anthropic.com/pricing before relying on these numbers.
+With no API key the app is in **sample mode**: cards are built from
+sentences in your material, no network, no cost. They are useful for
+testing and simple material but often clumsy.
 
-### Timeouts and limits
+For much better cards, get an API key from https://console.anthropic.com/
+(add a few dollars of credit), put it in `.env.local` as described above,
+and restart. The privacy note on the homepage then says that your lecture
+text is sent to Anthropic to write the cards. Rough cost with the default
+model `claude-opus-5`:
 
-- PDFs up to 10 MB, text-based only
-- Up to 60,000 characters of text in sample mode, 200,000 with Claude (longer
-  material is cut off and you are told)
-- 45-second generation timeout
-- 30 generation requests per 10 minutes per client (in-memory rate limit)
+| Material | Cost per run (approx.) |
+| --- | --- |
+| A few pages of notes | under 1 cent |
+| A 20-page paper | about 12 cents |
+| The 200,000-character cap | about 30 cents |
 
-## Importing into Anki
+Set `ANTHROPIC_MODEL=claude-sonnet-5` for roughly 40 percent of that.
+Check https://www.anthropic.com/pricing before relying on these numbers.
 
-1. Click **Export CSV for Anki**.
-2. In Anki: **File → Import**, choose the file.
-3. Anki reads the `#` lines at the top of the file and pre-fills the
-   separator, the column names, and the tags column. Check that **Front** and
-   **Back** map to your note type's fields.
-4. **Difficulty** and **Source** are extra columns. Map them to extra fields or
-   ignore them.
+## Limits
 
-The file is UTF-8 with a byte-order mark, comma separated, every field quoted.
-Other spreadsheet programs will show the `#` lines as ordinary rows; delete
-them there if they bother you.
-
-## Always review the cards
-
-Generated cards can be wrong, incomplete, or miss context. Every card shows
-the passage it came from. Open it, check it, edit what is off. The app will
-never tell you a card is correct, because it cannot know.
-
-## Known limitations
-
-Found while testing against real open-access marketing papers (see
-`test/fixtures/README.md`):
-
-- **Sample mode is a stand-in, not a tutor.** It turns sentences into
-  "What is X?" cards. On real papers a few cards per set are still vague
-  ("What is the result?"). Connect Claude for real quality.
-- **PDF text extraction is imperfect.** Two-column layouts, tables, and
-  formulas can come out scrambled. Hyphenated line breaks are repaired;
-  formulas rendered with special fonts often are not, and such sentences are
-  skipped in sample mode.
-- **No OCR.** Scanned PDFs, including ones with a single text cover sheet,
-  are rejected with a message asking you to paste the text.
-- **Long material is truncated** at the limits above. Paste the section you
-  care about for better results.
-- **Rate limiting is per server process** and trusts the `x-forwarded-for`
-  header. Fine for a small deployment; put a real rate limiter in front for
-  anything public.
-- **Cards live in the browser tab.** Export before you close it.
+- PDFs must contain real text. Scanned images are rejected with a message
+  asking you to paste the text instead (no OCR).
+- Up to 60,000 characters in sample mode, 200,000 with Claude; longer
+  material is cut off and you are told.
+- 45-second generation timeout; 30 runs per 10 minutes per client.
+- Two-column PDFs, tables and formulas can come out scrambled by text
+  extraction. Hyphenated line breaks are repaired.
+- Cards live in the browser tab. Study or export before closing it.
 
 ## Development
 
 ```bash
 npm run check       # lint + typecheck + tests
 npm test            # tests only
-npm run test:watch  # tests in watch mode
+npm run build       # production build
+npm start           # serve the production build
 ```
 
-See `CONTRIBUTING.md` for the rules and `CLAUDE.md` for the architecture,
-the data contract, and the provider boundary.
+`CLAUDE.md` has the architecture, data contract and provider boundary.
+`CONTRIBUTING.md` has the rules. An experimental note-taking surface
+(ink, PDF annotation, region-to-cards) lives on the `notes-surface` branch
+and is not part of this release.
 
 ## License
 

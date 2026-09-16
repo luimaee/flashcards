@@ -10,18 +10,14 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run lint && npm run typecheck && npm run test"
+    "check": "npm run lint && npm run typecheck && npm run test",
+    "setup": "npm install && node -e \"const f=require('fs');if(!f.existsSync('.env.local'))f.copyFileSync('.env.example','.env.local')\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",
-    "idb": "^8.0.3",
-    "minisearch": "^7.2.0",
     "next": "16.3.4",
-    "pdfjs-dist": "^6.3.289",
-    "perfect-freehand": "^1.2.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "ulid": "^3.0.2",
     "unpdf": "^1.8.1",
     "zod": "^4.5.4"
   },
@@ -32,9 +28,11 @@
     "@types/react-dom": "^19.2.5",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
-    "fake-indexeddb": "^6.2.5",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { CardEditor } from "@/components/CardEditor";
 import { SourceForm } from "@/components/SourceForm";
+import { StudyMode } from "@/components/StudyMode";
 import { ApiError, fetchProviderInfo, requestCards, type ProviderInfo, type SourceInput } from "@/lib/client";
 import { cardsToCsv } from "@/lib/csv";
 import type { Flashcard } from "@/lib/flashcards/schema";
@@ -17,6 +17,7 @@ import { initialSession, sessionReducer } from "@/lib/session";
 export default function Home() {
   const [state, dispatch] = useReducer(sessionReducer, initialSession);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [studying, setStudying] = useState(false);
   const [provider, setProvider] = useState<ProviderInfo | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -125,14 +126,7 @@ export default function Home() {
           Turn your lecture notes into study cards
         </h1>
         <p className="mt-3 max-w-xl text-base leading-7 text-ink-soft">
-          Upload a lecture PDF or paste your notes. You get 10 editable flashcards, each with the part of the lecture it came from, ready to export to Anki.
-        </p>
-        <p className="mt-2 text-sm text-ink-soft">
-          Or write your own notes first:{" "}
-          <Link href="/notes" className="font-medium text-accent underline underline-offset-2">
-            open Notes
-          </Link>
-          .
+          Upload a lecture PDF or paste your notes. You get 10 editable flashcards, each with the part of the lecture it came from, and you can study them right here.
         </p>
       </header>
 
@@ -194,9 +188,17 @@ export default function Home() {
               </button>
               <button
                 type="button"
-                onClick={exportCsv}
+                onClick={() => setStudying(true)}
                 disabled={state.busyCardId !== null || isWorking || cards.length === 0}
                 className="rounded-full bg-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-strong disabled:opacity-60"
+              >
+                Study
+              </button>
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={state.busyCardId !== null || isWorking || cards.length === 0}
+                className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink transition hover:bg-line/40 disabled:opacity-60"
               >
                 Export CSV for Anki
               </button>
@@ -232,7 +234,7 @@ export default function Home() {
           </ul>
 
           <p className="mt-8 text-xs leading-5 text-ink-soft">
-            The CSV starts with a few &ldquo;#&rdquo; lines that tell Anki how to read it, then one row per card: Front, Back, Tags, Difficulty, Source. In Anki choose File, then Import, pick the file, and check that Front and Back map to your note fields. Tags are picked up automatically. You can ignore the last two columns or map them to extra fields.
+            Study runs right here: one card at a time, Got it or Not yet, until every card is known. The CSV export is optional, for people who also use Anki: it starts with a few &ldquo;#&rdquo; lines that tell Anki how to read it, then one row per card: Front, Back, Tags, Difficulty, Source.
           </p>
         </section>
       )}
@@ -246,6 +248,8 @@ export default function Home() {
           from the same material, or start over above.
         </div>
       )}
+
+      {studying && <StudyMode cards={cards} onClose={() => setStudying(false)} />}
 
       <footer className="mt-auto pt-12 text-xs leading-5 text-ink-soft">
         Private beta. Nothing you upload is stored on the server: files are read in memory and discarded once your cards are made. Refreshing the page clears your cards, so export them first.
